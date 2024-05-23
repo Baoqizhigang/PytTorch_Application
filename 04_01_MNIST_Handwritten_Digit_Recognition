@@ -1,0 +1,53 @@
+#本节代码使用 TensorFlow 框架来构建和训练一个用于识别手写数字的简单神经网络
+
+# 导入 TensorFlow
+import tensorflow as tf
+
+# 加载 MNIST 数据集：tf.keras.datasets.mnist 是 TensorFlow 中预先包装好的 MNIST 手写数字数据集。
+# MNIST 是一个广泛用于入门深度学习的数据集。
+mnist = tf.keras.datasets.mnist
+
+# 汇入 MNIST 手写阿拉伯数字 训练资料
+'''
+数据集被分为两部分：训练集 (x_train, y_train) 和测试集 (x_test, y_test)。
+x_train 和 x_test 包含 28x28 的灰度图像，y_train 和 y_test 包含相应的标签（0-9）。
+'''
+(x_train, y_train),(x_test, y_test) = mnist.load_data()
+
+# 数据预处理 - 特征缩放至 (0, 1) 之间
+# 此行代码将图像像素值缩放到 0 和 1 之间。
+# 这是一种常见的数据归一化技术，有助于模型训练时的数值稳定性和提升收敛速度。
+x_train, x_test = x_train / 255.0, x_test / 255.0
+
+# 构建神经网络
+'''
+定义模型：使用 tf.keras.models.Sequential 建立一个序列模型，其中包含了一系列层：
+Flatten 层：将每个 28x28 的图像转换成一个 784 维的向量。
+Dense 层：一个全连接层，有 128 个神经元和 relu 激活函数。
+Dropout 层：随机丢弃 20% 的神经元，防止过拟合。
+输出层：另一个全连接层，具有 10 个神经元（每个数字一个），使用 softmax 激活函数进行多分类。'''
+model = tf.keras.models.Sequential([
+    tf.keras.layers.Flatten(input_shape=(28, 28)),
+    tf.keras.layers.Dense(128, activation='relu'),
+    tf.keras.layers.Dropout(0.2),
+    tf.keras.layers.Dense(10, activation='softmax')   
+])
+
+
+# 编译模型 - 设定优化器(optimizer)、损失函数(loss)、效能衡量指标(metrics)
+'''编译模型：
+设置训练时使用的优化器（Adam）、损失函数（sparse categorical crossentropy）和评估指标（准确率）。
+这里的损失函数适用于多分类问题，其中标签为整数。'''
+model.compile(optimizer='adam',
+             loss='sparse_categorical_crossentropy',
+             metrics=['accuracy'])
+
+
+# 模型训练，epochs：执行周期，validation_split：验证资料占 20%
+'''这行代码使用训练数据对模型进行训练，通过设定 epochs=5 来指定训练周期的总数。
+validation_split=0.2 表示 20% 的训练数据将用作验证数据，以监控训练过程中的过拟合。'''
+model.fit(x_train, y_train, epochs=5, validation_split=0.2)
+
+# 模型评估
+model.evaluate(x_test, y_test)
+
