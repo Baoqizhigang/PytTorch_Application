@@ -1,0 +1,86 @@
+import numpy as np
+import torch
+
+# nn模块包含用于构建神经网络的层和函数，optim模块包含优化算法（如随机梯度下降）
+from torch import nn, optim
+import torch.nn.functional as F
+
+# torchvision是一个PyTorch的扩展库，包含了常用的计算机视觉数据集和数据增强工具
+from torchvision import datasets
+
+# transforms模块提供了图像预处理和数据增强的方法，如缩放、裁剪、归一化等
+import torchvision.transforms as transforms
+
+# SubsetRandomSampler类用于从数据集中随机抽取一个子集，通常用于创建训练和验证集。
+from torch.utils.data.sampler import SubsetRandomSampler
+
+# accuracy_score用于计算模型的准确率
+from sklearn.metrics import accuracy_score
+import matplotlib.pyplot as plt
+
+# 本单元格代码用于设置数据预处理步骤，并下载和加载CIFAR-10数据集以用于训练和测试。
+'''
+这段代码实现了以下功能：
+1,设置每个批次的数据量为100。
+2,定义数据预处理步骤，包括将图像转换为张量并归一化。
+3,下载并加载CIFAR-10训练数据和测试数据，并应用预处理步骤。
+'''
+
+batch_size = 100 # 在训练和测试过程中，每次处理100张图像的批量
+
+# 标准化
+'''
+ToTensor(): 将PIL图像或NumPy数组转换为PyTorch张量，并将图像像素值从[0, 255]范围缩放到[0, 1]范围。
+Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)): 归一化图像数据。对于每个像素通道（红、绿、蓝），
+使用均值0.5和标准差0.5进行归一化，即将像素值从[0, 1]范围调整到[-1, 1]范围。
+'''
+transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5,0.5,0.5),(0.5,0.5,0.5))])
+
+# 这两行代码分别下载并加载CIFAR-10的训练数据和测试数据，并应用之前定义的预处理步骤
+''''data'：指定数据存储的目录。train=True：表示加载训练数据集。
+download=True：如果数据集不存在，则下载数据集。transform=transform：应用之前定义的预处理步骤。'''
+train_data = datasets.CIFAR10('data', train=True, download=True, transform=transform)
+''''train=False：表示加载测试数据集'''
+test_data = datasets.CIFAR10('data', train=False, download=True, transform=transform)
+
+# 本单元格代码主要目的是将训练数据集划分为训练集和验证集，并创建数据加载器（DataLoader）来批量加载训练集、验证集和测试集。
+'''
+这段代码实现了以下功能：
+1,将训练数据集划分为训练集和验证集。
+2,创建用于训练和验证的随机采样器。
+3,创建用于批量加载训练数据、验证数据和测试数据的数据加载器。
+'''
+
+test_size = 0.2 #test_size定义验证集占训练数据集的比例。这里设置为0.2，即20%的训练数据将用于验证。
+
+# 打乱索引并划分数据集
+idx = list(range(len(train_data))) # 创建一个从0到len(train_data) - 1的索引列表
+np.random.shuffle(idx) # 打乱索引列表，使数据随机分布。
+split_size = int(np.floor(test_size * len(train_data))) #计算验证集的大小，即test_size比例的训练数据数量。
+# 根据打乱的索引列表，将前split_size个索引分配给验证集dev_idx，其余的分配给训练集train_idx
+train_idx, dev_idx = idx[split_size:], idx[:split_size]
+
+train_sampler = SubsetRandomSampler(train_idx) # 创建训练数据的采样器，使用训练数据的索引。
+dev_sampler = SubsetRandomSampler(dev_idx) # 创建验证数据的采样器，使用验证数据的索引。
+
+'''这个数据加载器将批量加载训练数据，并按照随机采样的方式从训练集中获取数据:
+1, train_data：训练数据集。
+2, batch_size：每个批次的数据量。
+3, sampler：使用之前创建的训练数据采样器train_sampler。'''
+train_loader = torch.utils.data.DataLoader(train_data, batch_size = batch_size, sampler = train_sampler)
+dev_loader = torch.utils.data.DataLoader(train_data, batch_size=batch_size, sampler=dev_sampler)
+test_loader = torch.utils.data.DataLoader(test_data, batch_size=batch_size)
+
+'''
+train_data是一个包含CIFAR-10数据集的对象。
+train_data[0]表示数据集中的第一条数据，它是一个元组，包含图像和对应的标签。
+train_data[0][0]表示第一条数据中的图像部分。
+'''
+# 图片的维度：颜色通道、宽、高
+train_data[0][0].shape
+'''
+在CIFAR-10数据集中，每个图像的形状为 (3, 32, 32)，即：
+3 表示图像有 3 个通道（RGB）。
+32 表示图像的高度为 32 像素。
+32 表示图像的宽度为 32 像素。
+'''
