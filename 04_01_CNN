@@ -84,3 +84,207 @@ train_data[0][0].shape
 32 表示图像的高度为 32 像素。
 32 表示图像的宽度为 32 像素。
 '''
+
+
+device = "cuda" if torch.cuda.is_available() else "cpu"
+device
+
+#这段代码的主要目的是计算卷积和池化操作后图像尺寸的变化。
+#它实现了两个函数 Conv_Width 和 Pool_Width，
+#分别用于计算卷积层和池化层的输出宽度，以及一个综合的函数 Conv_Pool_Width，
+#用于多层卷积和池化操作后的图像宽度变化。
+
+import math
+
+# W, F, P, S：image Width, Filter width, Padding, Stride 
+# def Conv_Width(W, F, P, S):
+#     return math.floor(((W - F) + 2 * P) / S) + 1
+
+# def Pool_Width(W, F, S):
+#     return math.floor((W - F) / S) + 1
+
+
+# 该公式计算应用卷积核后图像的宽度变化。
+# W - F + 2 * P 是考虑填充后的有效宽度，再除以步幅 S，最后加1得到输出宽度，并用 math.floor 取整
+def Conv_Width(W, F, P, S):
+    # W：输入图像的宽度, F：卷积核（滤波器）的宽度, P：填充（padding）的大小,S：步幅（stride）
+    return math.floor(((W - F + 2 * P) / S) + 1 )
+
+# 该公式计算应用池化操作后图像的宽度变化。
+# W - F 是有效宽度，再除以步幅 S，最后加1得到输出宽度，并用 math.floor 取整
+def Pool_Width(W, F, S):
+    return math.floor((W - F) / S + 1)
+    
+# test - 测试卷积和池化宽度计算
+# 这里通过先进行卷积操作再进行池化操作，计算不同输入宽度下的输出宽度。
+# 例如，Conv_Width(32, 3, 1, 1)计算输入宽度为32的图像经过卷积核宽度为3、填充为1、步幅为1后的输出宽度。
+# Pool_Width再计算卷积后的图像经过池化核宽度为2、步幅为2后的输出宽度
+print(Pool_Width(Conv_Width(32, 3, 1, 1), 2, 2))
+print(Pool_Width(Conv_Width(16, 3, 1, 1), 2, 2))
+print(Pool_Width(Conv_Width(8, 3, 1, 1), 2, 2))
+
+#工作机制：该函数在一个循环中重复应用卷积和池化操作 n 次，并返回最终的输出宽度。
+def Conv_Pool_Width(W, F, P, S, F2, S2, n):# F2：池化核宽度, S2：池化步幅, n：卷积和池化层的层数
+    for i in range(n):
+        W = Pool_Width(Conv_Width(W, F, P, S), F2, S2)
+    return W # 返回值：多层卷积和池化操作后的最终输出宽度
+
+#计算输入宽度为32的图像经过3层卷积和池化操作后的最终输出宽度
+Conv_Pool_Width(32, 3, 1, 1, 2, 2, 3)
+
+
+# 这段代码定义了一个卷积神经网络（CNN）类 CNN，该类继承自 nn.Module，用于图像分类任务。
+# 代码包括网络的初始化和前向传播方法。
+
+# 调用之前定义的 Conv_Pool_Width 函数，计算经过3层卷积和池化操作后，输入图像的宽度。
+# 这里输入图像宽度为32，卷积核宽度为3，填充为1，步幅为1，池化核宽度为2，步幅为2，经过3层操作后的输出宽度存储在 Adjusted_width 变量中。
+Adjusted_width = Conv_Pool_Width(32, 3, 1, 1, 2, 2, 3)
+
+
+#定义卷积神经网络类 CNN
+class CNN(nn.Module):
+    def __init__(self):
+        super(CNN, self).__init__() # 调用父类的初始化方法
+        #Conv2d 参数： in-channel, out-channel, kernel size, Padding, Stride
+        #定义第一个卷积层，输入通道为3（RGB图像），输出通道为10，卷积核大小为3x3，填充为1，步幅为1。
+        self.conv1 = nn.Conv2d(3, 10, 3, 1, 1)
+        #定义第二个卷积层，输入通道为10，输出通道为20，卷积核大小为3x3，填充为1，步幅为1。
+        self.conv2 = nn.Conv2d(10, 20, 3, 1, 1)
+        #定义第三个卷积层，输入通道为20，输出通道为40，卷积核大小为3x3，填充为1，步幅为1
+        self.conv3 = nn.Conv2d(20, 40, 3, 1, 1)
+        #定义最大池化层，池化核大小为2x2，步幅为2
+        self.pool = nn.MaxPool2d(2, 2)
+
+        #定义第一个全连接层，输入大小为经过卷积和池化后的特征图展平后的长度，输出大小为100。
+        self.linear1 = nn.Linear(40 * Adjusted_width * Adjusted_width, 100)
+        #定义第二个全连接层，输入大小为100，输出大小为10（假设有10个分类）。
+        self.linear2 = nn.Linear(100, 10)
+        #定义Dropout层，丢弃率为0.2，用于防止过拟合。
+        self.dropout = nn.Dropout(0.2)
+
+        #定义前向传播方法
+    def forward(self, x):
+        # 将输入 x 通过第一个卷积层，然后通过ReLU激活函数，接着通过最大池化层。
+        x = self.pool(F.relu(self.conv1(x)))
+        # 将输出通过第二个卷积层，然后通过ReLU激活函数，接着通过最大池化层。
+        x = self.pool(F.relu(self.conv2(x)))
+        # 将输出通过第三个卷积层，然后通过ReLU激活函数，接着通过最大池化层。
+        x = self.pool(F.relu(self.conv3(x)))
+
+        # flatten
+        # 将特征图展平为一维向量，以便输入到全连接层。
+        x = x.view(-1, 40 * Adjusted_width * Adjusted_width)
+            
+        #应用Dropout层，随机丢弃一些神经元，防止过拟合
+        x = self.dropout(x) 
+        #将输出通过第一个全连接层，并应用ReLU激活函数。
+        x = F.relu(self.linear1(x))
+        # 再次应用Dropout层。
+        x = self.dropout(x)
+        # 将输出通过第二个全连接层，并应用Log Softmax函数得到分类结果。
+        x = F.log_softmax(self.linear2(x), dim=1)
+
+        return x
+
+
+# 这段代码的主要目的是初始化一个卷积神经网络（CNN）模型，定义损失函数和优化器，并设置训练的轮数。
+
+#1. 初始化模型并将其移动到设备（CPU或GPU）
+# CNN()：创建一个卷积神经网络的实例，前面已经定义了 CNN 类。
+# .to(device)：将模型移动到指定的设备上。device 变量通常是通过以下方式定义的：device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# 这意味着如果有可用的GPU（通过CUDA），模型将被移动到GPU上，否则移动到CPU上
+model = CNN().to(device)
+
+# 2. 定义损失函数 - 损失函数的作用是衡量模型输出与实际标签之间的差异，帮助指导模型参数的更新方向
+# nn.NLLLoss()：定义了负对数似然损失函数（Negative Log Likelihood Loss）。
+# 这是一个常用的损失函数，特别适用于分类问题，通常与 log_softmax 激活函数一起使用。
+loss_function = nn.NLLLoss()
+
+# 3. 定义优化器 - Adam（Adaptive Moment Estimation）是一个自适应学习率优化算法，结合了AdaGrad和RMSProp的优点。它使用一阶和二阶矩估计来动态调整每个参数的学习率，使得训练过程更稳定和快速。
+# optim.Adam(model.parameters(), lr=0.001)：定义了Adam优化器，并将学习率设为0.001。
+# model.parameters()：获取模型的所有参数，这些参数将被优化器更新。
+# 学习率（lr）：决定每次参数更新的步长。较小的学习率有助于稳步逼近最优解，较大的学习率可以加速训练，但可能会导致震荡或发散。
+optimizer = optim.Adam(model.parameters(), lr=0.001)
+
+# 4. 设置训练轮数
+# epochs：设置训练过程中完整遍历训练数据集的次数。每次完整遍历称为一个epoch。
+# 在每个epoch中，模型会使用训练数据进行前向传播、计算损失、反向传播并更新参数。
+# 多次遍历数据集有助于模型逐步收敛到一个较优的状态，减少训练误差。
+epochs = 50
+
+
+# 这段代码实现了卷积神经网络（CNN）的训练和验证过程，记录了每个训练周期的损失和准确率，并在每个周期结束时打印这些值。
+#训练模式和评估模式切换：在训练和验证阶段切换模型的模式，以启用或禁用训练特定的行为（如Dropout）。
+#梯度计算和更新：通过前向传播计算损失，反向传播计算梯度，并使用优化器更新模型参数。
+#记录和打印：记录每个epoch的损失和准确率，并在特定epoch打印这些结果，以便跟踪训练进展和模型性能。
+
+# 1. 模型设为训练模式
+model.train() #model.train()将模型设置为训练模式。这会启用诸如Dropout等训练特定的层行为。
+
+# 2. 初始化记录变量
+# 初始化四个列表来记录训练和验证的损失以及准确率，
+train_losses, dev_losses, train_acc, dev_acc = [], [], [], []
+x_axis = [] # x_axis用于记录每个周期的编号。
+
+# 3. 训练循环
+for e in range(1, epochs+1): #使用一个循环来迭代每个训练周期（epoch）
+    losses = 0 # 每个epoch中，初始化损失
+    acc = 0 # 准确率
+    iterations = 0 # 迭代次数
+
+    model.train()
+
+    # 4. 批量训练
+    for data, target in train_loader: # 从train_loader中获取一批数据和对应的标签。
+        iterations += 1
+
+        pred = model(data.to(device)) #将数据传入模型并计算输出（预测）
+        loss = loss_function(pred, target.to(device)) #使用损失函数计算预测值与真实值之间的损失。
+        optimizer.zero_grad() #在反向传播之前清除上一步的梯度
+        loss.backward() #计算损失相对于模型参数的梯度
+        optimizer.step() #使用优化器更新模型参数
+
+        losses += loss.item() #将当前批次的损失累加到总损失。
+         # 将预测值转换为概率分布，找到最高概率的类别，并与真实标签比较，计算准确率。
+        p = torch.exp(pred)
+        top_p, top_class = p.topk(1, dim=1)
+        acc += accuracy_score(target.to("cpu"), top_class.to("cpu"))
+
+    #5. 验证过程
+    # 初始化验证损失和准确率的累加变量。
+    dev_losss = 0 
+    dev_accs = 0
+    iter_2 = 0
+
+    #验证条件：每个epoch结束时，如果当前epoch是第1个或者是5的倍数，则进行验证。
+    if e%5 == 0 or e == 1:
+        x_axis.append(e) #将当前epoch编号添加到x_axis。
+
+        with torch.no_grad():#在验证过程中禁用梯度计算，以减少内存消耗和加快计算。
+            model.eval() # 将模型设置为评估模式，这会禁用诸如Dropout等训练特定的层行为。
+
+            for data_dev, target_dev in dev_loader:#从dev_loader中获取一批验证数据和对应的标签。
+                iter_2 += 1
+
+                dev_pred = model(data_dev.to(device))# 将验证数据传入模型并计算输出（预测）。
+                dev_loss = loss_function(dev_pred, target_dev.to(device))#使用损失函数计算预测值与真实值之间的损失。
+                dev_loss += dev_loss.item() #从dev_loader中获取一批验证数据和对应的标签。
+
+                dev_p = torch.exp(dev_pred)
+                top_p, dev_top_class = dev_p.topk(1, dim=1)
+                # 将预测值转换为概率分布，找到最高概率的类别，并与真实标签比较，计算准确率。
+                dev_accs += accuracy_score(target_dev.to("cpu"), dev_top_class.to("cpu"))
+
+        # 6. 记录和打印结果
+        train_losses.append(losses/iterations)
+        dev_losses.append(dev_losss/iter_2)
+        train_acc.append(acc/iterations)
+        dev_acc.append(dev_accs/iter_2)
+
+        print("Epoch: {}/{} ".format(e, epochs),
+              "Training Loss: {:.3f}".format(losses/iterations),
+              "Validation Loss: {:.3f}".format(dev_losss/iter_2),
+              "Training Accuracy: {:.3f}".format(acc/iterations),
+              "Validation Accuracy:{:.3f}".format(dev_accs/iter_2)
+            
+        )
