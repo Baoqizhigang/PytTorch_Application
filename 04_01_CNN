@@ -288,3 +288,8 @@ for e in range(1, epochs+1): #使用一个循环来迭代每个训练周期（ep
               "Validation Accuracy:{:.3f}".format(dev_accs/iter_2)
             
         )
+
+plt.plot(x_axis,train_losses, label='Training loss')
+plt.plot(x_axis, dev_losses, label='Validation loss')
+plt.legend(frameon=False)
+plt.show()
